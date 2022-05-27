@@ -211,6 +211,7 @@ class PlantDisease(datasets.GeneratorBasedBuilder):
         my_urls = _URLS[self.config.name]
         data_dirs = dl_manager.download(my_urls)
         # ensure that data_dirs is always a list of string paths
+
         if isinstance(data_dirs, str):
             data_dirs = [data_dirs]
 
@@ -219,7 +220,7 @@ class PlantDisease(datasets.GeneratorBasedBuilder):
                 name=datasets.Split.TRAIN,
                 gen_kwargs={
                     "data_files": itertools.chain(
-                        *[dl_manager.iter_archive(data_dir) for data_dir in data_dirs]
+                        *[dl_manager.iter_files(data_dir) for data_dir in data_dirs]
                     ),
                 },
             ),
@@ -240,9 +241,9 @@ class PlantDisease(datasets.GeneratorBasedBuilder):
         The contents of `example` will depend on the chosen configuration.
         """
         if self.config.schema == "source":
-            for guid, (filename, txt_file) in enumerate(list(data_files)):
+            for guid, txt_file in enumerate(list(data_files)):
 
-                if not filename.endswith('.ann'):
+                if '.ann' not in txt_file:
                     continue
 
                 example = parsing.parse_brat_file(txt_file)
@@ -252,9 +253,8 @@ class PlantDisease(datasets.GeneratorBasedBuilder):
         elif self.config.schema == "bigbio_kb":
             for guid, txt_file in enumerate(list(data_files)):
 
-                if not txt_file.name.endswith('.ann2'):
+                if '.ann' not in txt_file:
                     continue
-
                 example = parsing.brat_parse_to_bigbio_kb(
                     parsing.parse_brat_file(txt_file)
                 )
