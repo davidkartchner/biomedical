@@ -43,6 +43,7 @@ with 133,003 entity annotations linked to 10 different source ontologies.
 import os
 from typing import List, Tuple, Dict
 import glob
+import json
 
 import datasets
 from bioc import biocxml
@@ -81,8 +82,10 @@ _HOMEPAGE = "https://biocreative.bioinformatics.udel.edu/tasks/biocreative-vi/tr
 _LICENSE = Licenses.PUBLIC_DOMAIN_MARK_1p0
 
 _URLS = {
-    "train": "https://biocreative.bioinformatics.udel.edu/media/store/files/2017/BioIDtraining_2.tar.gz",
-    "test": "https://biocreative.bioinformatics.udel.edu/media/store/files/2017/BioIDtraining.tar.gz",
+    "bc6id":[
+        "https://biocreative.bioinformatics.udel.edu/media/store/files/2017/BioIDtraining_2.tar.gz",
+        "https://biocreative.bioinformatics.udel.edu/media/store/files/2017/BioIDtraining.tar.gz",
+    ]
 }
 
 _SUPPORTED_TASKS = [
@@ -90,13 +93,13 @@ _SUPPORTED_TASKS = [
     Tasks.NAMED_ENTITY_DISAMBIGUATION,
 ]
 
-_SOURCE_VERSION = "2"
+_SOURCE_VERSION = "1.2.0"
 
 _BIGBIO_VERSION = "1.0.0"
 
 
 class Bc6idDataset(datasets.GeneratorBasedBuilder):
-    """TODO: Short description of my dataset."""
+    """BioCreative VI BioID Dataset"""
 
     DEFAULT_CONFIG_NAME = "bc6id_source"
     SOURCE_VERSION = datasets.Version(_SOURCE_VERSION)
@@ -128,6 +131,7 @@ class Bc6idDataset(datasets.GeneratorBasedBuilder):
             description="bc6id source schema",
             schema="source",
             subset_id="bc6id",
+            # data_dir='/Users/david/Downloads/BioIDtraining_2/'
         ),
         BigBioConfig(
             name="bc6id_bigbio_kb",
@@ -217,7 +221,8 @@ class Bc6idDataset(datasets.GeneratorBasedBuilder):
                 # These kwargs will be passed to _generate_examples
                 gen_kwargs={
                     "filepath": os.path.join(
-                        train_dir, "caption_bioc/*.xml"
+                        train_dir, "BioIDtraining_2/caption_bioc/*.xml"
+                        # data_dir,  "caption_bioc/*.xml"
                     ),
                     "split": "train",
                 },
@@ -239,28 +244,44 @@ class Bc6idDataset(datasets.GeneratorBasedBuilder):
 
     # TODO: change the args of this function to match the keys in `gen_kwargs`. You may add any necessary kwargs.
 
+    def _generate_examples(self, filepath, split):
+        if self.config.schema == "source":
+            for i, data in self._generate_source_examples(filepath, split):
+                yield i, data
+
+        elif self.config.schema == "bigbio_kb":
+            for i, data in self._generate_bigbio_kb_examples(filepath, split):
+                yield i, data
+
     def _generate_source_examples(self, filepath, split):
         '''
         Generate examples for source schema
         '''
-        for filepath in glob.glob(filepath):
-            reader = biocxml.BioCXMLDocumentReader(str(filepath))
-
+        for file in glob.glob(filepath):
+            reader = biocxml.BioCXMLDocumentReader(str(file))
+    
             for uid, xdoc in enumerate(reader):
-                doc_text = self._get_document_text(xdoc)
-                yield uid, {
-                    "passages": [
-                        {
+                # doc_text = self._get_document_text(xdoc)
+
+                passages = []
+                
+                for passage in xdoc.passages:
+                    # Sometimes passage type is missing
+                    p_type = ''
+                    if 'type' in passage.infons:
+                        p_type = passage.infons["type"]
+                    passages.append({
                             "document_id": xdoc.id,
-                            "type": passage.infons["type"],
+                            # "type": passage.infons["type"],
                             "text": passage.text,
                             "entities": [
-                                self._get_bioc_entity(span, doc_text)
-                                for span in passage.annotations
+                                x for span in passage.annotations
+                                for x in self._get_bioc_entity(span, xdoc.id.split()[0])
                             ],
-                        }
-                        for passage in xdoc.passages
-                    ]
+                        })
+
+                yield uid, {
+                    "passages": passages
                 }
 
     def _generate_bigbio_kb_examples(self, filepath, split):
@@ -268,10 +289,12 @@ class Bc6idDataset(datasets.GeneratorBasedBuilder):
         Generate examples for BigBio KB schema
         '''
         uid = 0 # global unique id
+        doc_id = 0
+        failure_count = 0
+        for file in glob.glob(filepath):
+            reader = biocxml.BioCXMLDocumentReader(str(file))
 
-        for filepath in glob.glob(filepath):
-            reader = biocxml.BioCXMLDocumentReader(str(filepath))
-            for i, doc in enumerate(reader):
+            for doc in reader:
                 pmid = doc.id.split()[0]
             
                 data = {
@@ -287,9 +310,10 @@ class Bc6idDataset(datasets.GeneratorBasedBuilder):
 
                 char_start = 0
                 # passages must not overlap and spans must cover the entire document
-                for passage in doc.passages:
+                print(len(doc.passages))
+                for i, passage in enumerate(doc.passages):
                     offsets = [[char_start, char_start + len(passage.text)]]
-                    char_start = char_start + len(passage.text) + 1
+                    
                     p_type = ''
                     if 'type' in passage.infons:
                         p_type = passage.infons["type"]
@@ -303,28 +327,51 @@ class Bc6idDataset(datasets.GeneratorBasedBuilder):
                     )
                     uid += 1
                 
-                all_text = ' '.join([x['text'] for x in passages])
+                    all_text = ' '.join([text for x in data['passages'] for text in x['text']])
                 
                 # entities
-                for passage in doc.passages:
+                # for passage in doc.passages:
+                    
                     for span in passage.annotations:
-                        ent = self._get_bioc_entity(span, pmid)
-                        # ent["id"] = uid  # override BioC default id
-                        data["entities"].append(ent)
-                        # uid += 1
-                        start, end = ent['offsets'][0]
-                        assert all_text[start:end]
+                        ents = self._get_bioc_entity(span, pmid)
+                        for ent in ents:
+                            ent["id"] = uid  # override BioC default id
+                            ent['offsets'] = [[x[0] + char_start, x[1] + char_start] for x in ent['offsets']]
+                            uid += 1
+                        data["entities"].extend(ents)
+                        
 
-                yield i, data
+                        # # Quality Control
+                        # start, end = ents[0]['offsets'][0]
+                        # ent_text = ' '.join(ent['text'])
+
+                    #     if all_text[start:end] != ent_text:
+                    #         if i > 0:
+                    #             print("Passage Number:", i)
+                    #             print('Span in doc:', all_text[start:end])
+                    #             print('Entity span:', ent['text'])
+                    #             failure_count += 1
+                    #     # assert all_text[start:end] == ent_text
+
+                    # char_start = char_start + len(passage.text) + 1
 
 
+                yield doc_id, data
+                doc_id += 1
+                # print(failure_count)
+
+
+    # def _get_bioc_source_entity(self, ann, pmid):
+    #     # TODO: Finish
+    #     offsets, text = get_texts_and_offsets_from_bioc_ann(ann)
+    #     id_ = ann.infons["sourcedata_article_annot_id"]
 
     def _get_bioc_entity(self, ann, pmid):
         offsets, text = get_texts_and_offsets_from_bioc_ann(ann)
         id_ = ann.infons["sourcedata_article_annot_id"]
 
         normalized = defaultdict(list)
-        for x in a.infons["type"].split("|"):
+        for x in ann.infons["type"].split("|"):
 
             db_name = x.split(":")[0]
             db_id = x.split(":")[-1]
@@ -390,4 +437,9 @@ class Bc6idDataset(datasets.GeneratorBasedBuilder):
 # This allows you to run your dataloader with `python bc6id.py` during development
 # TODO: Remove this before making your PR
 if __name__ == "__main__":
-    datasets.load_dataset(__file__)
+    data = datasets.load_dataset(__file__, 'bc6id_bigbio_kb')
+    print("finished loading")
+    print(len([x for x in data['train']]))
+    # for i, dat in data['train']:
+    #     if i < 10:
+    #         print(dat)
