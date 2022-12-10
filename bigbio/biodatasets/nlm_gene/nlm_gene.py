@@ -180,9 +180,11 @@ class NLMGeneDataset(datasets.GeneratorBasedBuilder):
         # Correct an annotation error in PMID 24886643
         if db_ids.startswith("-222"):
             db_ids = db_ids.lstrip("-222,")
+            print(db_ids)
 
         # No listed entity for a mention
-        if db_ids in ["-1", "-000", "-111"]:
+        if db_ids in ["-1", "-000", "-111", "-"]:
+            # print(db_ids)
             normalized = []
 
         else:
@@ -276,3 +278,20 @@ class NLMGeneDataset(datasets.GeneratorBasedBuilder):
                             uid += 1
 
                     yield i, data
+
+
+if __name__ == "__main__":
+    data = datasets.load_dataset(__file__, name="nlm_gene_bigbio_kb")
+    import warnings
+    import pandas as pd
+
+    all_nlmgene_entities = set([])
+    for split in data:
+        for doc in data[split]:
+            for e in doc["entities"]:
+
+                if any([x["db_id"] == "" for x in e["normalized"]]):
+                    print(doc["document_id"])
+                    print(e)
+                    # print(e["normalized"])
+                    # all_nlmgene_entities.update([x for x in normalizations])
