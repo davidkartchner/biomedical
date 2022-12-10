@@ -278,20 +278,3 @@ class NLMGeneDataset(datasets.GeneratorBasedBuilder):
                             uid += 1
 
                     yield i, data
-
-
-if __name__ == "__main__":
-    data = datasets.load_dataset(__file__, name="nlm_gene_bigbio_kb")
-    import warnings
-    import pandas as pd
-
-    all_nlmgene_entities = set([])
-    for split in data:
-        for doc in data[split]:
-            for e in doc["entities"]:
-
-                if any([x["db_id"] == "" for x in e["normalized"]]):
-                    print(doc["document_id"])
-                    print(e)
-                    # print(e["normalized"])
-                    # all_nlmgene_entities.update([x for x in normalizations])
