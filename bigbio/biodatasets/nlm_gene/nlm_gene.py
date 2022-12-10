@@ -176,14 +176,25 @@ class NLMGeneDataset(datasets.GeneratorBasedBuilder):
         """Parse BioC entity annotation."""
         offsets, texts = get_texts_and_offsets_from_bioc_ann(span)
         db_ids = span.infons.get(db_id_key, "-1")
-        # Find connector between db_ids for the normalization, if not found, use default
-        connector = "|"
-        for splitter in list(splitters):
-            if splitter in db_ids:
-                connector = splitter
-        normalized = [
-            {"db_name": "NCBIGene", "db_id": db_id} for db_id in db_ids.split(connector)
-        ]
+
+        # Correct an annotation error in PMID 24886643
+        if db_ids.startswith("-222"):
+            db_ids = db_ids.lstrip("-222,")
+
+        # No listed entity for a mention
+        if db_ids in ["-1", "-000", "-111"]:
+            normalized = []
+
+        else:
+            # Find connector between db_ids for the normalization, if not found, use default
+            connector = "|"
+            for splitter in list(splitters):
+                if splitter in db_ids:
+                    connector = splitter
+            normalized = [
+                {"db_name": "NCBIGene", "db_id": db_id}
+                for db_id in db_ids.split(connector)
+            ]
 
         return {
             "id": span.id,
