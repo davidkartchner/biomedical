@@ -100,7 +100,7 @@ class GnormplusDataset(datasets.GeneratorBasedBuilder):
 
     DEFAULT_CONFIG_NAME = "gnormplus_source"
 
-    _re_tax_id = re.compile(r"(?P<db_id>\d+)\(Tax:(?P<tax_id>\d+)\)")
+    _re_tax_id = re.compile(r"(?P<db_id>\d+)\([tT]ax:(?P<tax_id>\d+)\)")
 
     def _info(self) -> datasets.DatasetInfo:
         if self.config.schema == "source":
@@ -172,7 +172,9 @@ class GnormplusDataset(datasets.GeneratorBasedBuilder):
             ),
         ]
 
-    def _parse_bioc_entity(self, uid, bioc_ann, db_id_key="NCBIGene", insert_tax_id=False):
+    def _parse_bioc_entity(
+        self, uid, bioc_ann, db_id_key="NCBIGene", insert_tax_id=False
+    ):
         offsets, texts = get_texts_and_offsets_from_bioc_ann(bioc_ann)
         _type = bioc_ann.infons["type"]
 
