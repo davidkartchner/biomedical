@@ -26,7 +26,7 @@ from .bigbiohub import Tasks
 from .bigbiohub import get_texts_and_offsets_from_bioc_ann
 
 
-_LANGUAGES = ['English']
+_LANGUAGES = ["English"]
 _PUBMED = True
 _LOCAL = False
 _CITATION = """\
@@ -65,7 +65,7 @@ identification tasks in biomedical text.
 
 _HOMEPAGE = "https://zenodo.org/record/5089049"
 
-_LICENSE = 'Creative Commons Zero v1.0 Universal'
+_LICENSE = "Creative Commons Zero v1.0 Universal"
 
 _URLS = {
     "source": "https://zenodo.org/record/5089049/files/NLM-Gene-Corpus.zip",
@@ -178,11 +178,11 @@ class NLMGeneDataset(datasets.GeneratorBasedBuilder):
         db_ids = span.infons.get(db_id_key, "-1")
 
         # Correct an annotation error in PMID 24886643
-        if db_ids.startswith('-222'):
-            db_ids = db_ids.lstrip('-222,')
+        if db_ids.startswith("-222"):
+            db_ids = db_ids.lstrip("-222,")
 
         # No listed entity for a mention
-        if db_ids in ['-1','-000','-111']:
+        if db_ids in ["-1", "-000", "-111", "-"]:
             normalized = []
 
         else:
@@ -192,7 +192,8 @@ class NLMGeneDataset(datasets.GeneratorBasedBuilder):
                 if splitter in db_ids:
                     connector = splitter
             normalized = [
-                {"db_name": "NCBIGene", "db_id": db_id} for db_id in db_ids.split(connector)
+                {"db_name": "NCBIGene", "db_id": db_id}
+                for db_id in db_ids.split(connector)
             ]
 
         return {
